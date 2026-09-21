@@ -12,10 +12,11 @@ import shlex
 from typing import Dict, Literal, Optional, TypedDict
 
 import fileops
-from e2b_adapter import SandboxAccessError, connect, resolve_sandbox_id
+from e2b_adapter import SandboxAccessError, connect, list_sandboxes
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from reqctx import RequestContext, get_request_context
+from state_store import get_last_sandbox_id, set_last_sandbox_id
 
 ReadMode = Literal["full", "lines", "head", "tail", "bytes"]
 WriteMode = Literal[
@@ -96,12 +97,42 @@ def _context() -> RequestContext:
 
 def _sandbox(sandbox_id: Optional[str]):
     context = _context()
+    requested = (sandbox_id or "").strip()
+
+    if requested:
+        try:
+            sandbox = connect(requested, context.api_key)
+        except SandboxAccessError as exc:
+            raise ToolError(str(exc)) from exc
+        except Exception as exc:
+            raise ToolError(f"sandbox unavailable: {exc}") from exc
+        set_last_sandbox_id(context.api_key, context.appwrite_key, requested)
+        return requested, sandbox
+
+    remembered = get_last_sandbox_id(context.api_key, context.appwrite_key)
+    if remembered:
+        try:
+            sandbox = connect(remembered, context.api_key)
+            set_last_sandbox_id(context.api_key, context.appwrite_key, remembered)
+            return remembered, sandbox
+        except Exception:
+            # The remembered sandbox may have expired or been removed. Fall
+            # through to the first currently visible sandbox.
+            pass
+
     try:
-        sid = resolve_sandbox_id(sandbox_id, context.default_sandbox_id)
-        return sid, connect(sid, context.api_key)
+        sandboxes = list_sandboxes(context.api_key, limit=1)
+        if not sandboxes or not sandboxes[0].get("sandbox_id"):
+            raise ToolError("no existing E2B sandbox is available")
+        sid = str(sandboxes[0]["sandbox_id"])
+        sandbox = connect(sid, context.api_key)
+        set_last_sandbox_id(context.api_key, context.appwrite_key, sid)
+        return sid, sandbox
+    except ToolError:
+        raise
     except SandboxAccessError as exc:
         raise ToolError(str(exc)) from exc
-    except Exception as exc:  # E2B auth/connectivity failures are caller-actionable.
+    except Exception as exc:
         raise ToolError(f"sandbox unavailable: {exc}") from exc
 
 

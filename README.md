@@ -18,9 +18,17 @@ request, preferably as `Authorization: Bearer e2b_xxx`. `X-E2B-Api-Key`,
 `?e2b_api_key=`, and the compatibility alias `?api_key=` are also accepted.
 Header credentials take precedence. A missing or malformed key returns 401.
 
-Set a default sandbox in the endpoint URL with `?sandbox_id=<id>`. Every tool
-that uses a sandbox also accepts an optional `sandbox_id` argument, which takes
-precedence over the URL value.
+Sandbox selection no longer uses a URL parameter. Every sandbox-backed tool
+accepts an optional `sandbox_id`. When provided, that sandbox is used and saved
+as the caller's last-used sandbox. When omitted, the server first tries the
+last-used sandbox stored in Appwrite Database; if none exists or it is no
+longer available, it uses the first sandbox returned by E2B and saves it.
+
+Last-used state is isolated per E2B API key using a SHA-256 digest; the raw E2B
+key is never stored. The function's Appwrite dynamic API key needs Database
+read/write scopes. The server lazily creates database `e2b-mcp`, collection
+`sandbox-state`, and the required `sandbox_id` attribute. Override the resource
+IDs with `E2B_MCP_DATABASE_ID` and `E2B_MCP_COLLECTION_ID` if needed.
 
 ## Tools
 
@@ -68,9 +76,10 @@ Use `src/main.py` as the Appwrite entrypoint and `pip install -r
 requirements.txt` as the build command. `main` is `async` — the runtime already
 owns the event loop, so it must never call `asyncio.run`.
 
-Optional environment variables: `MCP_SERVER_NAME` (default `e2b-sandbox-mcp`)
-and `MCP_TOOL_TIMEOUT` (soft deadline in seconds, default `25`, below
-Appwrite's 30s domain hard-cap).
+Optional environment variables: `MCP_SERVER_NAME` (default `e2b-sandbox-mcp`),
+`MCP_TOOL_TIMEOUT` (soft deadline in seconds, default `25`),
+`E2B_MCP_DATABASE_ID` (default `e2b-mcp`), and
+`E2B_MCP_COLLECTION_ID` (default `sandbox-state`).
 
 Requests are JSON-mode Streamable HTTP on `/`. Both protocol legs are served:
 legacy handshakes (`2024-11-05` … `2025-11-25`) via `serve_one`, and the modern
@@ -87,7 +96,8 @@ src/
 ├── appwrite_mcp/   # vendored Appwrite ↔ MCP adapter (template)
 ├── e2b_adapter.py  # E2B connect-only adapter
 ├── fileops.py      # partial-read and positional-write helpers
-├── reqctx.py       # request-scoped E2B credential/context
+├── reqctx.py       # request-scoped E2B/Appwrite credential context
+├── state_store.py  # Appwrite-backed last-used sandbox state
 └── security.py     # fail-closed credential parsing
 ```
 
