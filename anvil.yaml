@@ -3,8 +3,9 @@ name: E2B Sandbox MCP
 package_name: E2BSandboxMCP
 runtime_options:
   client_version: '3'
-  server_spec: {base: python310-standard}
-  server_version: python3-full
+  server_spec: {}
+  server_spec_disabled: {base: python310-standard}
+  server_version: python3-sandbox
   version: 3
 services:
 - client_config: {}
