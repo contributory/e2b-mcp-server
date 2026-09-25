@@ -5,7 +5,7 @@ A stateless JSON-mode Streamable HTTP MCP endpoint hosted in an Anvil Server Mod
 ## Deploy to Anvil
 
 1. In Anvil, create an app using **Clone from GitHub** with this repository. Under **Settings → Python version**, select **Python 3.10** and make sure the updated `anvil.yaml` is pulled into the app. Its `runtime_options.server_spec.base: python310-standard` pins the server environment; `client_version: '3'` controls only browser-side Python. Anvil loads server modules from `server_code/` and the `sandbox_state` Data Table from `anvil.yaml`. If Anvil reports `future feature annotations is not defined` in `dispatch.py`, the app is running an older server Python: reselect Python 3.10 and pull the latest GitHub revision.
-2. In the app's Python version settings, install the packages in `requirements.txt`: `mcp==2.2.0` and `e2b==2.51.0`. Anvil supports installing packages through its app-specific requirements editor.
+2. In the app's Python version settings, install the packages in `requirements.txt`: `mcp==2.2.0`, `e2b==2.51.0`, and `anyio==4.15.1`. Anvil supports installing packages through its app-specific requirements editor.
 3. Publish the app and use `https://<your-app>.anvil.app/_/api/mcp` as the MCP URL. The endpoint must be publicly reachable; E2B credentials authenticate every POST request. A private Anvil app requires its private access-key segment in the URL.
 4. Send the caller's E2B API key in `Authorization: Bearer e2b_...`, `X-E2B-Api-Key`, or `?e2b_api_key=...` if the MCP client only accepts a URL. The compatibility query alias `?api_key=...` remains supported. Headers take precedence over query parameters.
 
