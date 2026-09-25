@@ -1,5 +1,6 @@
-__pycache__/
-*.py[cod]
+node_modules/
+.env.local
+.convex/
+.DS_Store
 .venv/
-.env
-.env.*
+__pycache__/
