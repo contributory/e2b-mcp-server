@@ -1,4 +1,3 @@
-# E2B core SDK — used only to CONNECT to existing sandboxes (no create/kill here).
-e2b>=2.0.0,<3.0.0
-# Official MCP SDK owns the protocol, schema generation and Streamable HTTP legs.
-mcp>=2.0.0,<3.0.0
+# Versions validated with this Anvil adapter. Both require Python >=3.10.
+e2b==2.51.0
+mcp==2.2.0
