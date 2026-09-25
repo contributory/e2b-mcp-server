@@ -1,6 +1,10 @@
 name: E2B Sandbox MCP
 package_name: E2BSandboxMCP
-runtime_options: {version: 2, client_version: '3'}
+runtime_options:
+  version: 2
+  client_version: '3'
+  server_version: python3-full
+  server_spec: {base: python310-standard}
 services:
 - source: /runtime/services/tables.yml
   client_config: {}
