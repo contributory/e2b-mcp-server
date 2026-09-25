@@ -1,0 +1,4 @@
+# Versions validated with this Anvil adapter. All require Python >=3.10.
+e2b==2.51.0
+mcp==2.2.0
+anyio==4.15.1

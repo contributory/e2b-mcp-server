@@ -1,13 +1,23 @@
-db_schema: {}
 name: E2B Sandbox MCP
 package_name: E2BSandboxMCP
 runtime_options:
-  client_version: '3'
-  server_spec: {}
-  server_spec_disabled: {base: python310-standard}
-  server_version: python3-sandbox
   version: 3
+  client_version: '3'
+  server_version: python3-full
+  server_spec: {base: python310-standard}
 services:
-- client_config: {}
+- source: /runtime/services/tables.yml
+  client_config: {}
   server_config: {auto_create_missing_columns: false}
-  source: /runtime/services/tables.yml
+db_schema:
+- name: Sandbox State
+  id: 1
+  python_name: sandbox_state
+  columns:
+    e2bKeyDigest:
+      name: key_digest
+      type: string
+    e2bSandboxId:
+      name: sandbox_id
+      type: string
+  access: {python_name: sandbox_state, server: full, client: none, table_id: 1}
