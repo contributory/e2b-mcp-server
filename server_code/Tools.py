@@ -11,12 +11,12 @@ import re
 import shlex
 from typing import Dict, Literal, Optional, TypedDict
 
-import fileops
-from e2b_adapter import SandboxAccessError, connect, list_sandboxes
+from . import FileOps as fileops
+from .E2BAdapter import SandboxAccessError, connect, list_sandboxes
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
-from reqctx import RequestContext, get_request_context
-from state_store import get_last_sandbox_id, set_last_sandbox_id
+from .RequestContext import RequestContext, get_request_context
+from .StateStore import get_last_sandbox_id, set_last_sandbox_id
 
 ReadMode = Literal["full", "lines", "head", "tail", "bytes"]
 WriteMode = Literal[
@@ -106,14 +106,14 @@ def _sandbox(sandbox_id: Optional[str]):
             raise ToolError(str(exc)) from exc
         except Exception as exc:
             raise ToolError(f"sandbox unavailable: {exc}") from exc
-        set_last_sandbox_id(context.api_key, context.appwrite_key, requested)
+        set_last_sandbox_id(context.api_key, requested)
         return requested, sandbox
 
-    remembered = get_last_sandbox_id(context.api_key, context.appwrite_key)
+    remembered = get_last_sandbox_id(context.api_key)
     if remembered:
         try:
             sandbox = connect(remembered, context.api_key)
-            set_last_sandbox_id(context.api_key, context.appwrite_key, remembered)
+            set_last_sandbox_id(context.api_key, remembered)
             return remembered, sandbox
         except Exception:
             # The remembered sandbox may have expired or been removed. Fall
@@ -126,7 +126,7 @@ def _sandbox(sandbox_id: Optional[str]):
             raise ToolError("no existing E2B sandbox is available")
         sid = str(sandboxes[0]["sandbox_id"])
         sandbox = connect(sid, context.api_key)
-        set_last_sandbox_id(context.api_key, context.appwrite_key, sid)
+        set_last_sandbox_id(context.api_key, sid)
         return sid, sandbox
     except ToolError:
         raise

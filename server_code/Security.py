@@ -32,7 +32,7 @@ def extract_api_key(headers: Mapping[str, str]) -> Optional[str]:
     """Return the E2B API key from ``Authorization: Bearer <key>``.
 
     Falls back to an ``X-E2B-Api-Key`` header for clients that cannot set a
-    bearer. Appwrite lowercases header keys; both cases are checked. A header
+    bearer. Header casing varies by HTTP gateway; both cases are checked. A header
     that exists but is empty or not shaped like an E2B key (injected by a
     proxy, or a bearer token for some OTHER service) is treated as absent —
     never returned as a candidate credential.

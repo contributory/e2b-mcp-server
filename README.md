@@ -1,109 +1,43 @@
-# E2B Sandbox MCP Server
+# E2B Sandbox MCP Server (Anvil)
 
-A stateless MCP server deployed as an Appwrite Function. It operates only on
-existing E2B sandboxes: it can pause a sandbox, run commands, and inspect or
-edit files; it deliberately has no create, delete, or kill operation.
+A stateless JSON-mode Streamable HTTP MCP endpoint hosted in an Anvil Server Module. It operates only on existing E2B sandboxes; there are no create, kill or delete operations.
 
-The server uses the official [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk)
-for protocol handling, JSON-RPC, and generated tool schemas. `src/appwrite_mcp/`
-is the adapter from Appwrite's
-[`python/mcp-server` template](https://github.com/appwrite/templates/tree/main/python/mcp-server):
-Appwrite never runs a Starlette lifespan, so `streamable_http_app()` is unusable
-and each request is driven through the SDK's buffered entry points instead.
+## Deploy to Anvil
 
-## Authentication
+1. In Anvil, create an app using **Clone from GitHub** with this repository. Select the **Python 3.10** server environment. Anvil loads server modules from `server_code/` and the `sandbox_state` Data Table from `anvil.yaml`.
+2. In the app's Python version settings, install the packages in `requirements.txt`: `mcp>=2.0.0,<3.0.0` and `e2b>=2.0.0,<3.0.0`. Anvil supports installing packages through its app-specific requirements editor.
+3. Publish the app and use `https://<your-app>.anvil.app/_/api/mcp` as the MCP URL. The endpoint must be publicly reachable; E2B credentials authenticate every POST request. A private Anvil app requires its private access-key segment in the URL.
+4. Send the caller's E2B API key in `Authorization: Bearer e2b_...`, `X-E2B-Api-Key`, or `?e2b_api_key=...` if the MCP client only accepts a URL. The compatibility query alias `?api_key=...` remains supported. Headers take precedence over query parameters.
 
-No environment variables are required. Supply the E2B API key on every
-request, preferably as `Authorization: Bearer e2b_xxx`. `X-E2B-Api-Key`,
-`?e2b_api_key=`, and the compatibility alias `?api_key=` are also accepted.
-Header credentials take precedence. A missing or malformed key returns 401.
+The endpoint accepts POST and OPTIONS; GET and DELETE return 405. It sends JSON responses without an SSE stream or session. Legacy and modern MCP handshakes are handled by the existing buffered MCP dispatcher. The default request deadline is 25 seconds (`MCP_TOOL_TIMEOUT` can override it in the server environment).
 
-Sandbox selection no longer uses a URL parameter. Every sandbox-backed tool
-accepts an optional `sandbox_id`. When provided, that sandbox is used and saved
-as the caller's last-used sandbox. When omitted, the server first tries the
-last-used sandbox stored in Appwrite Database; if none exists or it is no
-longer available, it uses the first sandbox returned by E2B and saves it.
+## Sandbox selection
 
-Last-used state is isolated per E2B API key using a SHA-256 digest; the raw E2B
-key is never stored. The function's Appwrite dynamic API key needs Database
-read/write scopes. The server lazily creates database `e2b-mcp`, collection
-`sandbox-state`, and the required `sandbox_id` attribute. Override the resource
-IDs with `E2B_MCP_DATABASE_ID` and `E2B_MCP_COLLECTION_ID` if needed.
+Every sandbox-backed tool accepts an optional `sandbox_id`. An explicit ID is used and remembered. Without one, the server first tries the last-used ID; if it no longer exists, the server connects to the first available E2B sandbox. The `sandbox_state` table has `key_digest` and `sandbox_id` text columns and server-only access. The key digest is SHA-256 of the E2B API key; the raw key is never stored. There is no Appwrite Database or Storage dependency.
+
+Projects are directories directly under `/home/user/repos` in the selected E2B sandbox. The MCP server has no separate project registry.
 
 ## Tools
 
 | Tool | Purpose |
 | --- | --- |
 | `pause` | Pause an existing sandbox |
-| `exec` | Run a shell command; optionally select a project as cwd |
-| `search_code` | Bounded code/text search with ripgrep/grep fallback |
-| `projects_list` | Discover projects from direct subdirectories of `~/repos/` |
-| `project_create` | Create a project under `~/repos/`, optionally `git init` |
-| `files_list` | List one directory level |
-| `files_read` | Read all or part of a file |
-| `files_write` | Write, append, or positionally modify a file |
-| `files_stat` | Check whether a path exists |
+| `exec` | Run a shell command, optionally in a project |
+| `search_code` | Search source files with bounded output |
+| `projects_list`, `project_create` | Discover or create project directories |
+| `files_list`, `files_read`, `files_write`, `files_stat` | Inspect and edit sandbox files |
 
-Backward-compatible aliases remain available for existing clients: `sandbox_pause`,
-`sandbox_exec`, `sandbox_files_list`, `sandbox_files_read`, `sandbox_files_write`,
-and `sandbox_files_stat`. The aliases call the same implementations as the short names.
+The compatibility aliases for the earlier sandbox-prefixed tool names are retained.
 
-`files_read` supports `full`, `lines`, `head`, `tail`, and `bytes`
-modes. `files_write` supports `overwrite`, `create`, `append`,
-`prepend`, `insert_at_line`, `replace_lines`, and `insert_at_offset`.
+## Source layout
 
-### Project workspace
+- `server_code/McpEndpoint.py`: Anvil HTTP endpoint, authentication, CORS and request deadline.
+- `server_code/mcp_bridge/dispatch.py`: Buffered MCP protocol dispatcher.
+- `server_code/McpServer.py`, `server_code/Tools.py`: Tool schemas and handlers.
+- `server_code/StateStore.py`: Anvil Data Table persistence for the selected sandbox.
+- `server_code/E2BAdapter.py`, `server_code/FileOps.py`, `server_code/Security.py`, `server_code/RequestContext.py`: E2B operations and helpers.
+- `anvil.yaml`: Anvil app configuration and Data Table schema.
 
-Projects are intentionally filesystem-native: every direct child directory of
-`/home/user/repos` is a project. There is no registry or metadata database to
-keep in sync. `projects_list` scans that directory on each call, so a
-repository cloned or copied there by any other tool is discovered automatically.
+## Local checks
 
-`project_create(name, init_git=false)` creates `/home/user/repos/<name>`;
-project names cannot contain `/`, newlines, NUL, `.` or `..`. Set `exist_ok=true`
-for idempotent setup. When `init_git=true`, creation fails clearly if Git is not
-available instead of silently claiming initialization succeeded.
-
-For shorter, safer tool calls, `exec` and all file tools accept a
-`project` argument. With it, `cwd`/`path` is resolved relative to that project's
-directory and `..` escapes are rejected. `search_code` follows the same
-rule and caps returned matches (`40` by default, `200` maximum) to avoid sending
-large grep output through the model context.
-
-## Deployment
-
-Use `src/main.py` as the Appwrite entrypoint and `pip install -r
-requirements.txt` as the build command. `main` is `async` — the runtime already
-owns the event loop, so it must never call `asyncio.run`.
-
-Optional environment variables: `MCP_SERVER_NAME` (default `e2b-sandbox-mcp`),
-`MCP_TOOL_TIMEOUT` (soft deadline in seconds, default `25`),
-`E2B_MCP_DATABASE_ID` (default `e2b-mcp`), and
-`E2B_MCP_COLLECTION_ID` (default `sandbox-state`).
-
-Requests are JSON-mode Streamable HTTP on `/`. Both protocol legs are served:
-legacy handshakes (`2024-11-05` … `2025-11-25`) via `serve_one`, and the modern
-`2026-07-28` envelope via `handle_modern_request`. `GET`/`DELETE` return 405
-(no SSE streams, no sessions); `OPTIONS` returns 204 with CORS headers.
-
-## Layout
-
-```text
-src/
-├── main.py         # async Appwrite entrypoint: auth + request context
-├── app.py          # MCPServer definition (never name it server.py)
-├── tools.py        # Python-signature MCP tool registrations
-├── appwrite_mcp/   # vendored Appwrite ↔ MCP adapter (template)
-├── e2b_adapter.py  # E2B connect-only adapter
-├── fileops.py      # partial-read and positional-write helpers
-├── reqctx.py       # request-scoped E2B/Appwrite credential context
-├── state_store.py  # Appwrite-backed last-used sandbox state
-└── security.py     # fail-closed credential parsing
-```
-
-## Security notes
-
-Use HTTPS and avoid URL credentials when headers are available, since URLs can
-be retained in browser history, proxies, and telemetry. This is a
-bring-your-own-key proxy: the no-create/no-delete restriction applies only to
-this MCP interface, not to direct E2B API access by a key holder.
+Run `python3 -m compileall -q server_code` to check syntax, and `python3 -m unittest discover -s tests -v` for adapter/state tests. The Anvil HTTP endpoint and package installation still need verification in a published Anvil app.

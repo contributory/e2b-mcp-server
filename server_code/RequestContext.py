@@ -11,7 +11,6 @@ class RequestContext:
     """Carries credentials needed by one MCP request."""
 
     api_key: str
-    appwrite_key: str = ""
 
 
 _request_context: ContextVar[Optional[RequestContext]] = ContextVar(

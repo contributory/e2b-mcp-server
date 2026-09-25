@@ -1,13 +1,12 @@
-"""Two-leg MCP dispatcher for Appwrite Functions (buffered request/response).
+"""Two-leg MCP dispatcher for Anvil HTTP endpoints (buffered request/response).
 
-Appwrite never runs a Starlette lifespan, so ``StreamableHTTPSessionManager``
+Anvil does not run a Starlette lifespan, so ``StreamableHTTPSessionManager``
 is unusable here. Instead we route on the ``MCP-Protocol-Version`` header:
 
 * modern (``2026-07-28``) → ``handle_modern_request`` (ASGI-shaped, no task group)
 * legacy handshake eras   → ``serve_one`` + born-ready ``Connection.from_envelope``
 
-Both legs work with a fresh event loop per request and with Appwrite's
-persistent gunicorn worker loop.
+Both legs work with a fresh event loop per request and with Anvil's synchronous server worker.
 """
 
 from __future__ import annotations
@@ -39,7 +38,7 @@ _SECURITY = TransportSecuritySettings(enable_dns_rebinding_protection=False)
 class BufferedDispatchContext:
     """Structural ``DispatchContext`` for one buffered request.
 
-    Back-channel is closed by construction — Appwrite cannot hold an SSE stream
+    Back-channel is closed by construction — Anvil HTTP endpoints do not hold an SSE stream
     open for server-initiated requests or progress notifications.
     """
 
@@ -86,7 +85,7 @@ def _asgi_scope(
     headers: dict[str, str],
     body: bytes,
     scheme: str = "https",
-    host: str = "appwrite",
+    host: str = "anvil",
 ) -> dict[str, Any]:
     raw = [(k.lower().encode("latin-1"), v.encode("latin-1")) for k, v in headers.items()]
     raw.append((b"content-length", str(len(body)).encode()))
@@ -214,7 +213,7 @@ async def dispatch(
     headers: dict[str, str],
     body: bytes,
     scheme: str = "https",
-    host: str = "appwrite",
+    host: str = "anvil",
 ) -> tuple[int, dict[str, str], bytes]:
     """Route one buffered HTTP request to the correct MCP protocol leg.
 

@@ -5,7 +5,7 @@ import os
 
 from mcp.server.mcpserver import MCPServer
 
-from tools import register_tools
+from .Tools import register_tools
 
 server = MCPServer(
     name=os.environ.get("MCP_SERVER_NAME") or "e2b-sandbox-mcp",
@@ -15,7 +15,7 @@ server = MCPServer(
         "kill path. The caller supplies its own E2B API key per request "
         "(Authorization / X-E2B-Api-Key header, or ?e2b_api_key= for clients "
         "that can only configure a URL). A tool-level sandbox_id wins; otherwise "
-        "the last successfully used sandbox is loaded from Appwrite Database, "
+        "the last successfully used sandbox is loaded from Anvil Data Tables, "
         "falling back to the first existing E2B sandbox. Tools must finish "
         "within ~25s."
     ),
